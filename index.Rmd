@@ -1,5 +1,6 @@
 ---
-title: "yeastKODoublingTimes"
+title: "Yeast KO Doubling Times"
+subtitle: "Haploid Knock Out Library"
 author: "Carson Stacy"
 date: "2022-10-07"
 output: html_document
@@ -104,7 +105,7 @@ reactable(
   # ),
   columns = list(
     mean = colDef(
-      name = "Mean Doubling Time",
+      name = "Avg Doubling Time",
       html = TRUE,
       align = "left",
       header = JS('function(column) {
@@ -154,7 +155,7 @@ reactable(
 
 A distribution of all growth rates in the KO library. Graph has been truncated at 480 minute doubling times for ease of visibility.
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE}
 Persson_Adaption_2022_Data_S1 %>%
   ggplot(aes(x=doubling_time*60)) +
   geom_histogram(bins=200) +
