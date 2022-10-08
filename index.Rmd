@@ -1,0 +1,165 @@
+---
+title: "yeastKODoublingTimes"
+author: "Carson Stacy"
+date: "2022-10-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(reactable)
+library(tidyverse)
+library(sparkline)
+library(here)
+```
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE}
+# library(readxl)
+  # read_excel("~/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/Main Profile/Files/S0/1/Attachments/Persson_Adaption_2022_Data_S1_Dose_response[5017317].xlsx") 
+
+Persson_Adaption_2022_Data_S1 <- read_delim("~/Downloads/Persson_2022_Data_S1.tsv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) %>%
+  filter(NaAsO2.mM == 0) %>% 
+  mutate(Doubling.time = as.numeric(Doubling.time)) %>%
+  group_by(Gene.Standard, Gene.Systematic) %>%
+  select(!NaAsO2.mM) %>%
+  janitor::clean_names() %>%
+  arrange(gene_systematic) %>%
+  relocate(gene_standard,gene_systematic)
+
+
+
+
+tmp <- Persson_Adaption_2022_Data_S1 %>%
+  group_by(gene_standard, gene_systematic) %>%
+  summarise( # convert all to minutes instead of hours
+            doubling_times = list(doubling_time*60),
+            mean = mean(doubling_time, na.rm=TRUE)*60,
+            median = median(doubling_time)*60,
+            min = min(doubling_time, na.rm=TRUE)*60,
+            max = max(doubling_time)*60
+            ) %>%
+  mutate(boxplot = NA) %>% 
+  mutate(across(where(is.numeric), round, 3))
+```
+
+```{r, echo=FALSE}
+# reactable(
+#   Persson_Adaption_2022_Data_S1,
+#   searchable = TRUE,
+#   filterable = TRUE,
+#   defaultColDef = colDef(
+#     header = function(value) gsub("_", " ", value, fixed = TRUE),
+#     cell = function(value) format(value, nsmall = 1),
+#     align = "center",
+#     minWidth = 70,
+#     headerStyle = list(background = "#f7f7f8")
+#   ),
+#   columns = list(
+#     doubling_time = colDef(
+#       name = "Doubling Time",
+#       html = TRUE,
+#       align = "left",
+#       header = JS('function(column) {
+#         return column.name + `<div style="color: #737373">hours</div>`
+#       }')
+#     ),
+#     doubling_time = colDef(header = function(value) {
+#       tags$a(href = "https://wikipedia.org/wiki/List_of_Iris_species", value)
+#     }),
+#     gene_systematic = colDef(
+#       name = "ORF ID",
+#       html = TRUE,
+#       align = "left"
+#     ),
+#     gene_standard = colDef(
+#       name = "Gene name",
+#       html = TRUE,
+#       align = "center"
+#     )
+#   )
+# )
+
+```
+
+A searchable table of doubling time estimates for haploid yeast from the KO library. Data from https://doi.org/10.1093/g3journal/jkac240. The creator of this resource provides no guarantee of the accuracy of estimates shown here.
+```{r echo=FALSE}
+# reactable(tmp)
+
+reactable(
+  tmp,
+  searchable = TRUE,
+  filterable = TRUE,
+  # groupBy = "gene_standard",
+  # defaultColDef = colDef(
+  #   header = function(value) gsub("_", " ", value, fixed = TRUE),
+  #   cell = function(value) format(value, nsmall = 1),
+  #   align = "center",
+  #   minWidth = 70,
+  #   headerStyle = list(background = "#f7f7f8")
+  # ),
+  columns = list(
+    mean = colDef(
+      name = "Mean Doubling Time",
+      html = TRUE,
+      align = "left",
+      header = JS('function(column) {
+        return column.name + `<div style="color: #737373">minutes</div>`
+      }')
+    ),
+    min = colDef(
+      name = "Min Doubling Time",
+      html = TRUE,
+      align = "left",
+      header = JS('function(column) {
+        return column.name + `<div style="color: #737373">minutes</div>`
+      }')
+    ),
+    max = colDef(
+      name = "Max Doubling Time",
+      html = TRUE,
+      align = "left",
+      header = JS('function(column) {
+        return column.name + `<div style="color: #737373">minutes</div>`
+      }')
+    ),
+    # mean = colDef(header = function(value) {
+    #   tags$a(href = "https://wikipedia.org/wiki/List_of_Iris_species", value)
+    # }),
+    boxplot = colDef(cell = function(value, index) {
+      sparkline(tmp$doubling_times[[index]], type = "bar")
+    }),
+    doubling_times = colDef(show = FALSE),
+    median = colDef(show=FALSE),
+    gene_systematic = colDef(
+      name = "ORF ID",
+      html = TRUE,
+      align = "left"
+    ),
+    gene_standard = colDef(
+      name = "Gene name",
+      html = TRUE,
+      align = "center"
+    )
+  )
+)
+
+
+```
+
+
+A distribution of all growth rates in the KO library. Graph has been truncated at 480 minute doubling times for ease of visibility.
+
+```{r, echo=FALSE}
+Persson_Adaption_2022_Data_S1 %>%
+  ggplot(aes(x=doubling_time*60)) +
+  geom_histogram(bins=200) +
+  xlim(90,480) +
+  xlab("Doubling Time (minutes)") +
+  theme_classic()
+```
+
