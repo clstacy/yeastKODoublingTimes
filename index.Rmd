@@ -2,7 +2,7 @@
 title: "Yeast KO Doubling Times"
 subtitle: "Haploid Knock Out Library"
 author: "Carson Stacy"
-date: "2022-10-07"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output: html_document
 ---
 
@@ -50,7 +50,7 @@ tmp <- Persson_Adaption_2022_Data_S1 %>%
 
 tmp_adj <- Persson_Adaption_2022_Data_S1 %>%
   group_by(gene_standard, gene_systematic) %>%
-  mutate(doubling_time_adj= doubling_time*60*(90/104)) %>%
+  mutate(doubling_time_adj= round(doubling_time*60*(90/104),2)) %>%
   summarise(doubling_times = list(doubling_time_adj),
             mean = mean(doubling_time_adj, na.rm=TRUE),
             median = median(doubling_time_adj),
