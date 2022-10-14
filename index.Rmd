@@ -6,6 +6,12 @@ date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output: html_document
 ---
 
+<!-- # add a column ratio relative to wildtype -->
+<!-- # also data for the wildtype -->
+<!-- # was in SC, not YPD so need to change that. -->
+<!-- # Boone and Andrews lab did the SGA approach (double deletions). Can look them up -->
+<!-- sites.utoronto.ca/boonelab -->
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -26,7 +32,7 @@ Persson_Adaption_2022_Data_S1 <- read_delim("~/Downloads/Persson_2022_Data_S1.ts
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
   filter(NaAsO2.mM == 0) %>% 
-  mutate(Doubling.time = round(as.numeric(Doubling.time),2)) %>%
+  mutate(Doubling.time = round((as.numeric(Doubling.time)*60),2)) %>%
   group_by(Gene.Standard, Gene.Systematic) %>%
   select(!NaAsO2.mM) %>%
   janitor::clean_names() %>%
@@ -37,46 +43,47 @@ Persson_Adaption_2022_Data_S1 <- read_delim("~/Downloads/Persson_2022_Data_S1.ts
 
 tmp <- Persson_Adaption_2022_Data_S1 %>%
   group_by(gene_standard, gene_systematic) %>%
-  mutate(doubling_time= doubling_time*60) %>%
-  summarise(doubling_times = list(doubling_time),
+  summarise(doubling_times = list(round(doubling_time/121.95,3)),
             mean = mean(doubling_time, na.rm=TRUE),
             median = median(doubling_time),
+            sd = sd(doubling_time, na.rm=TRUE),
             min = min(doubling_time, na.rm=TRUE),
-            max = max(doubling_time)
+            max = max(doubling_time),
+            ratio_to_WT = mean/121.95
             ) %>%
   mutate(boxplot = NA) %>% 
-  mutate(across(where(is.numeric), round, 0)) %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
   mutate_if(is.numeric, list(~na_if(., Inf)))
 
-tmp_adj <- Persson_Adaption_2022_Data_S1 %>%
-  group_by(gene_standard, gene_systematic) %>%
-  mutate(doubling_time_adj= round(doubling_time*60*(90/104),2)) %>%
-  summarise(doubling_times = list(doubling_time_adj),
-            mean = mean(doubling_time_adj, na.rm=TRUE),
-            median = median(doubling_time_adj),
-            min = min(doubling_time_adj, na.rm=TRUE),
-            max = max(doubling_time_adj)
-            ) %>%
-  mutate(boxplot = NA) %>% 
-  mutate(across(where(is.numeric), round, 0)) %>%
-  mutate_if(is.numeric, list(~na_if(., Inf)))
+# tmp_adj <- Persson_Adaption_2022_Data_S1 %>%
+#   group_by(gene_standard, gene_systematic) %>%
+#   mutate(doubling_time_adj= round(doubling_time*60*(90/104),2)) %>%
+#   summarise(doubling_times = list(doubling_time_adj),
+#             mean = mean(doubling_time_adj, na.rm=TRUE),
+#             median = median(doubling_time_adj),
+#             min = min(doubling_time_adj, na.rm=TRUE),
+#             max = max(doubling_time_adj)
+#             ) %>%
+#   mutate(boxplot = NA) %>% 
+#   mutate(across(where(is.numeric), round, 0)) %>%
+#   mutate_if(is.numeric, list(~na_if(., Inf)))
 
-write_csv(tmp[-8], "~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S1_Doubling_times.csv")
+write_csv(tmp[-10], "~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S1_Doubling_times.csv")
 
-write_csv(tmp_adj[-8], "~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv")
+# write_csv(tmp_adj[-8], "~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv")
 ```
 
 
-A searchable table of doubling time estimates for haploid yeast from the KO library. Data from https://doi.org/10.1093/g3journal/jkac240. The creator of this resource provides no guarantee of the accuracy of estimates shown here. Times have been corrected by a factor of $\approx0.865$ to scale from the doubling times observed in time-lapse microscopy on YPD to batch doubling time observed in liquid 1X YPD. More details on normalization strategy available [below](#more-information-about-normalization-technique-used).
+A searchable table of doubling time estimates for haploid yeast from the KO library. Data from https://doi.org/10.1093/g3journal/jkac240. The creator of this resource provides no guarantee of the accuracy of estimates shown here. More details [below](#devils-in-the-details).
 
 
-### Doubling Times
+### Doubling Times in SC
 
 ```{r echo=FALSE}
 # reactable(tmp)
 
 reactable(
-  tmp_adj,
+  tmp,
   searchable = TRUE,
   filterable = TRUE,
   defaultPageSize = 30,
@@ -94,31 +101,31 @@ reactable(
       html = TRUE,
       align = "left",
       header = JS('function(column) {
-        return column.name + `<div style="color: #737373">minutes</div>`
+        return column.name + `<div style="color: #737373">(minutes)</div>`
       }')
     ),
-    min = colDef(
-      name = "Minimum",
+    sd = colDef(
+      name = "Standard Deviation",
       html = TRUE,
       align = "left",
       header = JS('function(column) {
-        return column.name + `<div style="color: #737373">minutes</div>`
+        return column.name + `<div style="color: #737373">(minutes)</div>`
       }')
     ),
-    max = colDef(
-      name = "Maximum",
+    ratio_to_WT = colDef(
+      name = "Relative Doubling Time",
       html = TRUE,
       align = "left",
       header = JS('function(column) {
-        return column.name + `<div style="color: #737373">minutes</div>`
+        return column.name + `<div style="color: #737373">(KO/WT)</div>`
       }')
     ),
     # mean = colDef(header = function(value) {
     #   tags$a(href = "https://wikipedia.org/wiki/List_of_Iris_species", value)
     # }),
-    boxplot = colDef(name = "Boxplot", 
+    boxplot = colDef(name = "Rel. DT (replicates)", 
                      cell = function(value, index) {
-      sparkline(tmp_adj$doubling_times[[index]], type = "bar")
+      sparkline(tmp$doubling_times[[index]], type = "bar")
     }),
     # mean_original = colDef(
     #   name = "Mean (Uncorrected)",
@@ -129,7 +136,9 @@ reactable(
     #   }')
     # ),
     doubling_times = colDef(show = FALSE),
+    min = colDef(show=FALSE),
     median = colDef(show=FALSE),
+    max = colDef(show=FALSE),
     gene_systematic = colDef(
       name = "ORF ID",
       html = TRUE,
@@ -145,128 +154,92 @@ reactable(
 
 
 ```
-Raw data: [`Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv`](Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv)]
+Raw data: [`Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv`](Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv)] (from Supplement Material [Table S1](https://data.mendeley.com/datasets/r5kz3kj6f2/1))
 
 
 A distribution of all growth rates in the KO library. Graph has been truncated at 480 minute doubling times for ease of visibility.
 
 ```{r, echo=FALSE, warning=FALSE}
-my_y_title <- expression(paste("KO Doubling Times on YPD agar (Raw Data)"))
-
+my_y_title <- expression(paste("KO Doubling Times in SC"))
+bw <- 2
 p1 <- Persson_Adaption_2022_Data_S1 %>%
-  ggplot(aes(x=doubling_time*60)) +
-  geom_histogram(bins=300, fill = "blue") +
-  scale_x_continuous(breaks = seq(60, 480, by = 30),
-                     limits = c(80,480)) +
-  # xlim(90,480) +
-  # geom_vline(xintercept = quantile(Persson_modified$doubling_time*60,
-                                   # 0.005, #quantile desired (top 0.05%, gives DT ~= 90 min)
-                                   # na.rm=T)) +
+  ggplot(aes(x=doubling_time)) +
+  geom_density(color = "lightblue", aes(y=bw * ..count..),
+               size = 2) +
+  geom_histogram(binwidth = bw, fill = "blue", alpha = 0.9) +
+  scale_x_continuous(breaks = seq(90, 480, by = 30),
+                     limits = c(90,480)) +
+  geom_vline(xintercept = 121.95, color = "red", linetype = "longdash") + #WT doubling time
+  annotate(geom = "label",
+            label = "WT",
+            x = 121.95, y = 12,
+            angle = 90, 
+            vjust = 1) +
   xlab("Doubling Time (minutes)") +
+  ylab("# of samples") +
   theme_classic() +
   ggtitle(my_y_title)
+
+p1
 ```
 
 <!-- Calculation for a *normalized* growth rate here, to convert to a liquid media growth rate -->
 ```{r, echo=FALSE, warning=FALSE, include=FALSE}
-Persson_Adaption_2022_Data_S1 %>%
-  ungroup() %>%
-  dplyr::summarise(mode = quantile(doubling_time, 0.005, na.rm = TRUE)*60) # top 0.05% growth quantile of all mutants 
+# Persson_Adaption_2022_Data_S1 %>%
+#   ungroup() %>%
+#   dplyr::summarise(mode = quantile(doubling_time, 0.005, na.rm = TRUE)*60) # top 0.05% growth quantile of all mutants 
 # (b/c no control was present in the raw data)
 ```
 
-### More information about normalization technique used
+
 
 ```{r, echo=FALSE, warning=FALSE}
-Persson_modified <- Persson_Adaption_2022_Data_S1 %>%
-  mutate(doubling_time_adj = doubling_time*60*(90/104)) #conversion from median 104 min doubling time (value inspired from this paper and Levy, 2012) to 90 minute (default for BY haploid in YPD)
+# Persson_modified <- Persson_Adaption_2022_Data_S1 %>%
+#   mutate(doubling_time_adj = doubling_time*60*(90/104)) #conversion from median 104 min doubling time (value inspired from this paper and Levy, 2012) to 90 minute (default for BY haploid in YPD)
 
 #ggtitle
-my_y_title2 <- expression(paste("KO Doubling Times ", italic("\"normalized\""), " to liquid media"))
+# my_y_title2 <- expression(paste("KO Doubling Times ", italic("\"normalized\""), " to liquid media"))
 
-p2 <- Persson_modified %>%
-  ggplot(aes(x=doubling_time_adj)) +
-  geom_histogram(bins=300, fill = "blue") +
-  # geom_vline(xintercept = quantile(Persson_modified$doubling_time_adj,
-  #                                  0.005, #quantile desired (top 1%, gives DT ~= 91 min)
-  #                                  na.rm=T)) +
-  xlab("Doubling Time (minutes)") +
-  scale_x_continuous(breaks = seq(60, 480, by = 30),
-                     limits = c(80,480)) +
-    # xlim(80,480) +
-  theme_classic() +
-  ggtitle(my_y_title2)
+# p2 <- Persson_modified %>%
+#   ggplot(aes(x=doubling_time_adj)) +
+#   geom_histogram(bins=60, fill = "blue") +
+#   # geom_vline(xintercept = quantile(Persson_modified$doubling_time_adj,
+#   #                                  0.005, #quantile desired (top 1%, gives DT ~= 91 min)
+#   #                                  na.rm=T)) +
+#   xlab("Doubling Time (minutes)") +
+#   scale_x_continuous(breaks = seq(60, 480, by = 30),
+#                      limits = c(80,480)) +
+#     # xlim(80,480) +
+#   theme_classic() +
+#   ggtitle(my_y_title2)
 
-ggarrange(p1,
-          p2, 
-          nrow=2, 
-          ncol=1)
+# ggarrange(p1,
+#           p2, 
+#           nrow=2, 
+#           ncol=1)
+
+# p1
 ```
 
-This dataset did not have a WT control to compare directly doubling times. However, the doubling times observed here closely match those from Levy et al, 2012 (doubling time $\approx 104$ minutes). Given the haploid S299C strain BY background has a doubling time of approximately 90 minutes in batch culture, a correction of $\frac{90}{104}$ was utilized here to provide a better estimate for batch culture growth.
+### Devils in the details
 
-### Original data Doubling Times (without correction)
+This file did not have a WT control to compare directly doubling times, so data from [Supplemental Table S7](https://data.mendeley.com/datasets/r5kz3kj6f2/1/files/ac6e1bf4-4be2-4c52-90df-4b810f7920dd) was filtered to find WT doubling times, which had a single value of 121.95 minutes. As such, this value was used as the WT doubling time for determining relative growth rates.
 
-For use with estimating growth rates on 1X YPD agar via timelapse microscopy.
-```{r echo=F}
-reactable(
-  tmp,
-  searchable = TRUE,
-  filterable = TRUE,
-  defaultPageSize = 3,
-  # groupBy = "gene_standard",
-  # defaultColDef = colDef(
-  #   header = function(value) gsub("_", " ", value, fixed = TRUE),
-  #   cell = function(value) format(value, nsmall = 1),
-  #   align = "center",
-  #   minWidth = 70,
-  #   headerStyle = list(background = "#f7f7f8")
-  # ),
-  columns = list(
-    mean = colDef(
-      name = "Average",
-      html = TRUE,
-      align = "left",
-      header = JS('function(column) {
-        return column.name + `<div style="color: #737373">minutes</div>`
-      }')
-    ),
-    min = colDef(
-      name = "Minimum",
-      html = TRUE,
-      align = "left",
-      header = JS('function(column) {
-        return column.name + `<div style="color: #737373">minutes</div>`
-      }')
-    ),
-    max = colDef(
-      name = "Maximum",
-      html = TRUE,
-      align = "left",
-      header = JS('function(column) {
-        return column.name + `<div style="color: #737373">minutes</div>`
-      }')
-    ),
-    # mean = colDef(header = function(value) {
-    #   tags$a(href = "https://wikipedia.org/wiki/List_of_Iris_species", value)
-    # }),
-    boxplot = colDef(name = "Boxplot",
-                     cell = function(value, index) {
-      sparkline(tmp$doubling_times[[index]], type = "bar")
-    }),
-    doubling_times = colDef(show = FALSE),
-    median = colDef(show=FALSE),
-    gene_systematic = colDef(
-      name = "ORF ID",
-      html = TRUE,
-      align = "left"
-    ),
-    gene_standard = colDef(
-      name = "Gene name",
-      html = TRUE,
-      align = "center"
-    )
-  )
-)
+
+```{r echo=FALSE, warning=FALSE, include=FALSE}
+Persson_Adaption_2022_Data_S7 <- read_delim("~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S7_Doubling_times.tsv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) %>%
+  janitor::clean_names() %>%
+  filter(environment == "Synthetic complete",
+         gene_standard == "Wildtype")# %>% 
+  # mutate(Doubling.time = round(as.numeric(Doubling.time),2)) %>%
+  # group_by(Gene.Standard, Gene.Systematic) %>%
+  # select(!NaAsO2.mM) %>%
+  # 
+  # arrange(gene_systematic) %>%
+  # relocate(gene_standard,gene_systematic)
 ```
+
+
 
