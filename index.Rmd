@@ -1,22 +1,21 @@
 ---
 title: "Yeast KO Doubling Times"
-subtitle: "Haploid Knock Out Library"
 author: "Carson Stacy"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output: html_document
 ---
+![](https://komarev.com/ghpvc/?username=clstacy)
 
-<!-- # add a column ratio relative to wildtype -->
-<!-- # also data for the wildtype -->
-<!-- # was in SC, not YPD so need to change that. -->
 <!-- # Boone and Andrews lab did the SGA approach (double deletions). Can look them up -->
-<!-- sites.utoronto.ca/boonelab -->
+
+<!-- sit#es.utoronto.ca/boonelab -->
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r, include=FALSE}
+library(readxl)
 library(reactable)
 library(tidyverse)
 library(sparkline)
@@ -31,59 +30,170 @@ library(ggpubr)
 Persson_Adaption_2022_Data_S1 <- read_delim("~/Downloads/Persson_2022_Data_S1.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
-  filter(NaAsO2.mM == 0) %>% 
-  mutate(Doubling.time = round((as.numeric(Doubling.time)*60),2)) %>%
+  dplyr::filter(NaAsO2.mM == 0) %>% 
+  mutate(Doubling.time = round((as.numeric(Doubling.time)*60),2),
+           rel_doubling_time = round(Doubling.time/121.95,3)) %>%
   group_by(Gene.Standard, Gene.Systematic) %>%
-  select(!NaAsO2.mM) %>%
+  dplyr::select(!NaAsO2.mM) %>%
   janitor::clean_names() %>%
   arrange(gene_systematic) %>%
-  relocate(gene_standard,gene_systematic)
+  relocate(gene_standard,gene_systematic) %>%
+  mutate(ctl_dt = 121.95 ,media = "SC", source = "Persson_2022")
 
+Yoshikawa_Comprehensive_2009_Data_S1_prep <- read_excel("~/Downloads/Yoshikawa_2009_Data_S1.xls", 
+    sheet = "data", skip = 1)[,1:4]
+colnames(Yoshikawa_Comprehensive_2009_Data_S1_prep) <- c(
+  "gene_systematic",
+  "gene_standard",
+  "rep_1",
+  "rep_2"
+)
 
+Yoshikawa_Comprehensive_2009_Data_S1 <- 
+  Yoshikawa_Comprehensive_2009_Data_S1_prep %>%
+    pivot_longer(cols = c(rep_1, rep_2), 
+                 names_to = NULL, 
+                 values_to = "growth_rate") %>%
+    mutate(doubling_time = log(2)/(growth_rate), # because dbl.time = ln(2)/growth rate
+      doubling_time = round((as.numeric(doubling_time)*60),2), # get in minutes instead of hours
+           rel_doubling_time = round(doubling_time/((log(2)/0.452)*60),3)) %>% # value from publication
+    mutate(ctl_dt = (log(2)/0.452)*60, media = "YPD", source = "Yoshikawa_2009") %>%
+    select(-growth_rate) %>%
+    janitor::clean_names() %>%
+    arrange(gene_systematic) %>%
+    relocate(gene_standard,gene_systematic)
+  
 
-tmp <- Persson_Adaption_2022_Data_S1 %>%
-  group_by(gene_standard, gene_systematic) %>%
-  summarise(doubling_times = list(round(doubling_time/121.95,3)),
+# combine both datasets into single file
+df <- bind_rows(Persson_Adaption_2022_Data_S1, Yoshikawa_Comprehensive_2009_Data_S1) %>%
+  group_by(gene_standard, gene_systematic, media) %>%
+  summarise(rel_doubling_times = list(rel_doubling_time),
             mean = mean(doubling_time, na.rm=TRUE),
-            median = median(doubling_time),
-            sd = sd(doubling_time, na.rm=TRUE),
-            min = min(doubling_time, na.rm=TRUE),
-            max = max(doubling_time),
-            ratio_to_WT = mean/121.95
+            # median = median(doubling_time),
+            # sd = sd(doubling_time, na.rm=TRUE),
+            # min = min(doubling_time, na.rm=TRUE),
+            # max = max(doubling_time),
+            ctl_dt = mean(ctl_dt)
             ) %>%
-  mutate(boxplot = NA) %>% 
+  mutate(ratio_to_WT = mean/ctl_dt, boxplot = NA) %>% 
+  select(-ctl_dt) %>%
   mutate(across(where(is.numeric), round, 3)) %>%
-  mutate_if(is.numeric, list(~na_if(., Inf)))
+  mutate_if(is.numeric, list(~na_if(., Inf))) %>%
+  pivot_wider(
+    names_from = media,
+    names_sep = "_",
+    values_from = c(rel_doubling_times, mean, ratio_to_WT, boxplot)
+  )
 
-# tmp_adj <- Persson_Adaption_2022_Data_S1 %>%
+
+# tmp <- Persson_Adaption_2022_Data_S1 %>%
 #   group_by(gene_standard, gene_systematic) %>%
-#   mutate(doubling_time_adj= round(doubling_time*60*(90/104),2)) %>%
-#   summarise(doubling_times = list(doubling_time_adj),
-#             mean = mean(doubling_time_adj, na.rm=TRUE),
-#             median = median(doubling_time_adj),
-#             min = min(doubling_time_adj, na.rm=TRUE),
-#             max = max(doubling_time_adj)
+#   summarise(doubling_times = list(round(doubling_time/121.95,3)),
+#             mean = mean(doubling_time, na.rm=TRUE),
+#             median = median(doubling_time),
+#             sd = sd(doubling_time, na.rm=TRUE),
+#             min = min(doubling_time, na.rm=TRUE),
+#             max = max(doubling_time),
+#             ratio_to_WT = mean/121.95
 #             ) %>%
 #   mutate(boxplot = NA) %>% 
-#   mutate(across(where(is.numeric), round, 0)) %>%
+#   mutate(across(where(is.numeric), round, 3)) %>%
 #   mutate_if(is.numeric, list(~na_if(., Inf)))
 
-write_csv(tmp[-10], "~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S1_Doubling_times.csv")
+
+
+# write_csv(tmp[-10], "~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S1_Doubling_times.csv")
 
 # write_csv(tmp_adj[-8], "~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv")
+
+write_csv(df[,-c(9,10)], "~/Documents/GitHub/yeastKODoublingTimes/Combined_data_doubling_times.csv")
 ```
 
+A searchable table of doubling time estimates for haploid yeast from the KO library. YPD and SC growth rates are in the BY4742 (MATαhis3Δ1 leu2Δ0 lys2Δ0 ura3Δ0) and BY4741 single-gene deletion collection (MATa; his3Δ1; leu2Δ0; met15Δ0; ura3Δ0; GeneX::kanMX) backgrounds respectively. The creator of this resource provides no guarantee of the accuracy of estimates shown here. More details [below](#devils-in-the-details).
 
-A searchable table of doubling time estimates for haploid yeast from the KO library. Data from https://doi.org/10.1093/g3journal/jkac240. The creator of this resource provides no guarantee of the accuracy of estimates shown here. More details [below](#devils-in-the-details).
-
-
-### Doubling Times in SC
+### Haploid Deletion Library Strain Doubling Times
 
 ```{r echo=FALSE}
 # reactable(tmp)
+# 
+# reactable(
+#   tmp,
+#   searchable = TRUE,
+#   filterable = TRUE,
+#   defaultPageSize = 30,
+#   # groupBy = "gene_standard",
+#   # defaultColDef = colDef(
+#   #   header = function(value) gsub("_", " ", value, fixed = TRUE),
+#   #   cell = function(value) format(value, nsmall = 1),
+#   #   align = "center",
+#   #   minWidth = 70,
+#   #   headerStyle = list(background = "#f7f7f8")
+#   # ),
+#   columns = list(
+#     mean = colDef(
+#       name = "Average",
+#       html = TRUE,
+#       align = "left",
+#       header = JS('function(column) {
+#         return column.name + `<div style="color: #737373">(minutes)</div>`
+#       }')
+#     ),
+#     sd = colDef(
+#       name = "Standard Deviation",
+#       html = TRUE,
+#       align = "left",
+#       header = JS('function(column) {
+#         return column.name + `<div style="color: #737373">(minutes)</div>`
+#       }')
+#     ),
+#     ratio_to_WT = colDef(
+#       name = "Relative Doubling Time",
+#       html = TRUE,
+#       align = "left",
+#       header = JS('function(column) {
+#         return column.name + `<div style="color: #737373">(KO/WT)</div>`
+#       }')
+#     ),
+#     # mean = colDef(header = function(value) {
+#     #   tags$a(href = "https://wikipedia.org/wiki/List_of_Iris_species", value)
+#     # }),
+#     boxplot = colDef(name = "Rel. DT (replicates)", 
+#                      cell = function(value, index) {
+#       sparkline(tmp$doubling_times[[index]], type = "bar")
+#     }),
+#     # mean_original = colDef(
+#     #   name = "Mean (Uncorrected)",
+#     #   html = TRUE,
+#     #   align = "left",
+#     #   header = JS('function(column) {
+#     #     return column.name + `<div style="color: #737373">minutes</div>`
+#     #   }')
+#     # ),
+#     doubling_times = colDef(show = FALSE),
+#     min = colDef(show=FALSE),
+#     median = colDef(show=FALSE),
+#     max = colDef(show=FALSE),
+#     gene_systematic = colDef(
+#       name = "ORF ID",
+#       html = TRUE,
+#       align = "left"
+#     ),
+#     gene_standard = colDef(
+#       name = "Gene name",
+#       html = TRUE,
+#       align = "center"
+#     )
+#   )
+# )
+
+
+```
+
+```{r echo=FALSE}
 
 reactable(
-  tmp,
+  df %>% 
+    dplyr::select(gene_standard, gene_systematic, mean_YPD, ratio_to_WT_YPD, boxplot_YPD, rel_doubling_times_YPD, mean_SC, ratio_to_WT_SC, boxplot_SC, rel_doubling_times_SC),
   searchable = TRUE,
   filterable = TRUE,
   defaultPageSize = 30,
@@ -96,37 +206,67 @@ reactable(
   #   headerStyle = list(background = "#f7f7f8")
   # ),
   columns = list(
-    mean = colDef(
-      name = "Average",
+    mean_YPD = colDef(
+      name = "Doubling Time in YPD",
       html = TRUE,
       align = "left",
-      header = JS('function(column) {
-        return column.name + `<div style="color: #737373">(minutes)</div>`
-      }')
+      # header = JS('function(column) {
+      #   return column.name + `<div style="color: #737373">(minutes)</div>`
+      # }')
+      header = function(value) {
+      paste0(value, " ", htmltools::a(href = "https://doi.org/10.1111/j.1567-1364.2008.00456.x", "[1]"))
+    }
     ),
-    sd = colDef(
-      name = "Standard Deviation",
-      html = TRUE,
-      align = "left",
-      header = JS('function(column) {
-        return column.name + `<div style="color: #737373">(minutes)</div>`
-      }')
-    ),
-    ratio_to_WT = colDef(
-      name = "Relative Doubling Time",
+    # tmp = colDef(header = function(value) {
+    #   tags$a(href = "https://wikipedia.org/wiki/List_of_Iris_species", value)
+    # }
+    ratio_to_WT_YPD = colDef(
+      name = "Relative Doubling Time in YPD",
       html = TRUE,
       align = "left",
       header = JS('function(column) {
         return column.name + `<div style="color: #737373">(KO/WT)</div>`
       }')
     ),
+    boxplot_YPD = colDef(name = "ratios to WT (YPD)", 
+                     cell = function(value, index) {
+      sparkline(df$rel_doubling_times_YPD[[index]], 
+                type = "bar", barColor="grey",
+                chartRangeMin = 0.5, chartRangeMax = 2)
+    }),
+    mean_SC = colDef(
+      name = "Doubling Time in SC",
+      html = TRUE,
+      align = "left",
+      header = function(value) {
+      paste0(value, " ", htmltools::a(href = "https://doi.org/10.1093/g3journal/jkac240", "[2]"))
+    }
+    ),
+    ratio_to_WT_SC = colDef(
+      name = "Relative Doubling Time in SC",
+      html = TRUE,
+      align = "left",
+      header = JS('function(column) {
+        return column.name + `<div style="color: #737373">(KO/WT)</div>`
+      }')
+    ),
+    boxplot_SC = colDef(name = "ratio to WT (SC)", 
+                     cell = function(value, index) {
+      sparkline(df$rel_doubling_times_SC[[index]], type = "bar", barColor="lightblue",
+                chartRangeMin = 0.5, chartRangeMax = 2)
+    }),
+    # sd = colDef(
+    #   name = "Standard Deviation",
+    #   html = TRUE,
+    #   align = "left",
+    #   header = JS('function(column) {
+    #     return column.name + `<div style="color: #737373">(minutes)</div>`
+    #   }')
+    # ),
+
     # mean = colDef(header = function(value) {
     #   tags$a(href = "https://wikipedia.org/wiki/List_of_Iris_species", value)
     # }),
-    boxplot = colDef(name = "Rel. DT (replicates)", 
-                     cell = function(value, index) {
-      sparkline(tmp$doubling_times[[index]], type = "bar")
-    }),
     # mean_original = colDef(
     #   name = "Mean (Uncorrected)",
     #   html = TRUE,
@@ -135,63 +275,81 @@ reactable(
     #     return column.name + `<div style="color: #737373">minutes</div>`
     #   }')
     # ),
-    doubling_times = colDef(show = FALSE),
-    min = colDef(show=FALSE),
-    median = colDef(show=FALSE),
-    max = colDef(show=FALSE),
+    rel_doubling_times_YPD = colDef(show = FALSE),
+    rel_doubling_times_SC = colDef(show = FALSE),
+    # min = colDef(show=FALSE),
+    # median = colDef(show=FALSE),
+    # max = colDef(show=FALSE),
     gene_systematic = colDef(
       name = "ORF ID",
       html = TRUE,
       align = "left"
     ),
     gene_standard = colDef(
-      name = "Gene name",
+      name = "Gene Name",
       html = TRUE,
       align = "center"
     )
   )
 )
-
-
 ```
-Raw data: [`Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv`](Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv)] (from Supplement Material [Table S1](https://data.mendeley.com/datasets/r5kz3kj6f2/1))
 
+Below are distributions of all growth rates in the haploid deletion library in 1X YPD and SC media. Graphs have been truncated at 300 minute doubling times for ease of visibility.
 
-A distribution of all growth rates in the KO library. Graph has been truncated at 480 minute doubling times for ease of visibility.
-
-```{r, echo=FALSE, warning=FALSE}
-my_y_title <- expression(paste("KO Doubling Times in SC"))
+```{r echo=FALSE, fig.height=12, fig.width=9, warning=FALSE}
+my_y_title_YPD <- expression(paste("KO Doubling Times in YPD"))
+my_y_title_SC <- expression(paste("KO Doubling Times in SC"))
 bw <- 2
-p1 <- Persson_Adaption_2022_Data_S1 %>%
+p1 <- Yoshikawa_Comprehensive_2009_Data_S1 %>%
   ggplot(aes(x=doubling_time)) +
-  geom_density(color = "lightblue", aes(y=bw * ..count..),
-               size = 2) +
-  geom_histogram(binwidth = bw, fill = "blue", alpha = 0.9) +
-  scale_x_continuous(breaks = seq(90, 480, by = 30),
-                     limits = c(90,480)) +
-  geom_vline(xintercept = 121.95, color = "red", linetype = "longdash") + #WT doubling time
+  # geom_density(color = "lightblue", aes(y=bw * ..count..),
+  #              size = 2) +
+  geom_histogram(binwidth = bw, fill = "#FFFF77", alpha = 0.9) +
+  scale_x_continuous(breaks = seq(60, 300, by = 30),
+                     limits = c(60,300)) +
+  geom_vline(xintercept = (log(2)/0.452)*60, color = "black", linetype = "longdash", alpha = 0.5) + #WT doubling time
   annotate(geom = "label",
             label = "WT",
-            x = 121.95, y = 12,
+            x = (log(2)/0.452)*60, y = 1,
             angle = 90, 
             vjust = 1) +
   xlab("Doubling Time (minutes)") +
   ylab("# of samples") +
   theme_classic() +
-  ggtitle(my_y_title)
+  ggtitle(my_y_title_YPD)
 
-p1
+
+
+p2 <- Persson_Adaption_2022_Data_S1 %>%
+  ggplot(aes(x=doubling_time)) +
+  # geom_density(color = "lightblue", 
+  #              aes(y=bw * ..count..),
+  #              size = 2) +
+  geom_histogram(binwidth = bw, fill = "lightblue") +
+  scale_x_continuous(breaks = seq(60, 300, by = 30),
+                     limits = c(60,300)) +
+  geom_vline(xintercept = 121.95, color = "black", linetype = "longdash", alpha = 0.5) + #WT doubling time
+  annotate(geom = "label",
+            label = "WT",
+            x = 121.95, y = 1,
+            angle = 90, 
+            vjust = 1) +
+  xlab("Doubling Time (minutes)") +
+  ylab("# of samples") +
+  theme_classic() +
+  ggtitle(my_y_title_SC)
+
+ggarrange(p1, p2, ncol=1)
 ```
 
 <!-- Calculation for a *normalized* growth rate here, to convert to a liquid media growth rate -->
+
 ```{r, echo=FALSE, warning=FALSE, include=FALSE}
 # Persson_Adaption_2022_Data_S1 %>%
 #   ungroup() %>%
 #   dplyr::summarise(mode = quantile(doubling_time, 0.005, na.rm = TRUE)*60) # top 0.05% growth quantile of all mutants 
 # (b/c no control was present in the raw data)
 ```
-
-
 
 ```{r, echo=FALSE, warning=FALSE}
 # Persson_modified <- Persson_Adaption_2022_Data_S1 %>%
@@ -221,17 +379,18 @@ p1
 # p1
 ```
 
-### Devils in the details
+### Devils in the details {#devils-in-the-details}
 
-This file did not have a WT control to compare directly doubling times, so data from [Supplemental Table S7](https://data.mendeley.com/datasets/r5kz3kj6f2/1/files/ac6e1bf4-4be2-4c52-90df-4b810f7920dd) was filtered to find WT doubling times, which had a single value of 121.95 minutes. As such, this value was used as the WT doubling time for determining relative growth rates.
+The data file for SC deletion growth rates did not have a WT control to compare directly doubling times, so data from [Supplemental Table S7](https://data.mendeley.com/datasets/r5kz3kj6f2/1/files/ac6e1bf4-4be2-4c52-90df-4b810f7920dd) was filtered to find WT doubling times, which had a single value of 121.95 minutes. As such, this value was used as the WT doubling time for determining relative growth rates. Used BY4742 (MATαhis3Δ1 leu2Δ0 lys2Δ0 ura3Δ0) background from Open Biosystems
 
+Similarly, the raw data for YPD growth rates did not have a WT control to compare directly doubling times, so the WT doubling time from Table 1 in the paper was used for calculating relative doubling times. This paper only had two replicates.
 
 ```{r echo=FALSE, warning=FALSE, include=FALSE}
 Persson_Adaption_2022_Data_S7 <- read_delim("~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_Data_S7_Doubling_times.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
   janitor::clean_names() %>%
-  filter(environment == "Synthetic complete",
+  dplyr::filter(environment == "Synthetic complete",
          gene_standard == "Wildtype")# %>% 
   # mutate(Doubling.time = round(as.numeric(Doubling.time),2)) %>%
   # group_by(Gene.Standard, Gene.Systematic) %>%
@@ -241,5 +400,10 @@ Persson_Adaption_2022_Data_S7 <- read_delim("~/Documents/GitHub/yeastKODoublingT
   # relocate(gene_standard,gene_systematic)
 ```
 
+Raw Data sources:
 
+1.  Katsunori Yoshikawa, Tadamasa Tanaka, Chikara Furusawa, Keisuke Nagahisa, Takashi Hirasawa, Hiroshi Shimizu, Comprehensive phenotypic analysis for identification of genes affecting growth under ethanol stress in Saccharomyces cerevisiae, FEMS Yeast Research, Volume 9, Issue 1, February 2009, Pages 32--44, <https://doi.org/10.1111/j.1567-1364.2008.00456.x>
 
+2.  Karl Persson, Simon Stenberg, Markus J Tamás, Jonas Warringer, Adaptation of the yeast gene knockout collection is near-perfectly predicted by fitness and diminishing return epistasis, G3 Genes\|Genomes\|Genetics, 2022;, jkac240, <https://doi.org/10.1093/g3journal/jkac240>
+
+    <!-- [`Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv`](Persson_Adaption_2022_Data_S1_Doubling_times_normalized.csv)] (from Supplement Material [Table S1](https://data.mendeley.com/datasets/r5kz3kj6f2/1)) -->
