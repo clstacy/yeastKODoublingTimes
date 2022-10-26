@@ -4,7 +4,6 @@ author: "Carson Stacy"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output: html_document
 ---
-![](https://komarev.com/ghpvc/?username=clstacy)
 
 <!-- # Boone and Andrews lab did the SGA approach (double deletions). Can look them up -->
 
