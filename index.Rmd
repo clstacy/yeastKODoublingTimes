@@ -7,7 +7,7 @@ output: html_document
 
 <!-- # Boone and Andrews lab did the SGA approach (double deletions). Can look them up -->
 
-<!-- sit#es.utoronto.ca/boonelab -->
+<!-- sites.utoronto.ca/boonelab -->
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -38,6 +38,8 @@ Persson_Adaption_2022_Data_S1 <- read_delim("~/Downloads/Persson_2022_Data_S1.ts
   arrange(gene_systematic) %>%
   relocate(gene_standard,gene_systematic) %>%
   mutate(ctl_dt = 121.95 ,media = "SC", source = "Persson_2022")
+
+write_csv(Persson_Adaption_2022_Data_S1, "~/Documents/GitHub/yeastKODoublingTimes/Persson_Adaption_2022_doubling_times.csv")
 
 Yoshikawa_Comprehensive_2009_Data_S1_prep <- read_excel("~/Downloads/Yoshikawa_2009_Data_S1.xls", 
     sheet = "data", skip = 1)[,1:4]
@@ -111,82 +113,6 @@ write_csv(df[,-c(9,10)], "~/Documents/GitHub/yeastKODoublingTimes/Combined_data_
 A searchable table of doubling time estimates for haploid yeast from the KO library. YPD and SC growth rates are in the BY4742 (MATαhis3Δ1 leu2Δ0 lys2Δ0 ura3Δ0) and BY4741 single-gene deletion collection (MATa; his3Δ1; leu2Δ0; met15Δ0; ura3Δ0; GeneX::kanMX) backgrounds respectively. The creator of this resource provides no guarantee of the accuracy of estimates shown here. More details [below](#devils-in-the-details).
 
 ### Haploid Deletion Library Strain Doubling Times
-
-```{r echo=FALSE}
-# reactable(tmp)
-# 
-# reactable(
-#   tmp,
-#   searchable = TRUE,
-#   filterable = TRUE,
-#   defaultPageSize = 30,
-#   # groupBy = "gene_standard",
-#   # defaultColDef = colDef(
-#   #   header = function(value) gsub("_", " ", value, fixed = TRUE),
-#   #   cell = function(value) format(value, nsmall = 1),
-#   #   align = "center",
-#   #   minWidth = 70,
-#   #   headerStyle = list(background = "#f7f7f8")
-#   # ),
-#   columns = list(
-#     mean = colDef(
-#       name = "Average",
-#       html = TRUE,
-#       align = "left",
-#       header = JS('function(column) {
-#         return column.name + `<div style="color: #737373">(minutes)</div>`
-#       }')
-#     ),
-#     sd = colDef(
-#       name = "Standard Deviation",
-#       html = TRUE,
-#       align = "left",
-#       header = JS('function(column) {
-#         return column.name + `<div style="color: #737373">(minutes)</div>`
-#       }')
-#     ),
-#     ratio_to_WT = colDef(
-#       name = "Relative Doubling Time",
-#       html = TRUE,
-#       align = "left",
-#       header = JS('function(column) {
-#         return column.name + `<div style="color: #737373">(KO/WT)</div>`
-#       }')
-#     ),
-#     # mean = colDef(header = function(value) {
-#     #   tags$a(href = "https://wikipedia.org/wiki/List_of_Iris_species", value)
-#     # }),
-#     boxplot = colDef(name = "Rel. DT (replicates)", 
-#                      cell = function(value, index) {
-#       sparkline(tmp$doubling_times[[index]], type = "bar")
-#     }),
-#     # mean_original = colDef(
-#     #   name = "Mean (Uncorrected)",
-#     #   html = TRUE,
-#     #   align = "left",
-#     #   header = JS('function(column) {
-#     #     return column.name + `<div style="color: #737373">minutes</div>`
-#     #   }')
-#     # ),
-#     doubling_times = colDef(show = FALSE),
-#     min = colDef(show=FALSE),
-#     median = colDef(show=FALSE),
-#     max = colDef(show=FALSE),
-#     gene_systematic = colDef(
-#       name = "ORF ID",
-#       html = TRUE,
-#       align = "left"
-#     ),
-#     gene_standard = colDef(
-#       name = "Gene name",
-#       html = TRUE,
-#       align = "center"
-#     )
-#   )
-# )
-
-
-```
 
 ```{r echo=FALSE}
 
